@@ -46,19 +46,91 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
   // Video Player Logic
   useEffect(() => {
     if (videoRef.current && !isExporting) {
-      videoRef.current.currentTime = activeHighlight.startTime;
-      videoRef.current.play().catch(() => setIsPlaying(false));
-      setIsPlaying(true);
+      const video = videoRef.current;
+      
+      const handleLoadedMetadata = () => {
+        const vidDuration = video.duration;
+        let start = activeHighlight.startTime;
+        
+        if (!isNaN(vidDuration) && vidDuration > 0) {
+          if (start >= vidDuration - 0.5) start = 0;
+        }
+        
+        video.currentTime = start;
+        video.play().catch(() => setIsPlaying(false));
+        setIsPlaying(true);
+      };
+
+      if (video.readyState >= 1) {
+        handleLoadedMetadata();
+      } else {
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        return () => video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      }
     }
   }, [activeHighlight, videoUrl, isExporting]);
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
-    setCurrentTime(videoRef.current.currentTime);
+    const video = videoRef.current;
+    setCurrentTime(video.currentTime);
     
-    if (!isExporting && videoRef.current.currentTime >= activeHighlight.endTime) {
-      videoRef.current.currentTime = activeHighlight.startTime;
+    if (isExporting) return;
+
+    const vidDuration = video.duration;
+    
+    // If metadata not loaded, wait
+    if (isNaN(vidDuration) || vidDuration === 0) return;
+
+    let start = activeHighlight.startTime;
+    let end = activeHighlight.endTime;
+
+    // If the highlight starts after or very close to the end of the video,
+    // fallback to playing the whole video to prevent infinite loops.
+    if (start >= vidDuration - 0.5) {
+      start = 0;
+      end = vidDuration;
+    } else {
+      end = Math.min(end, vidDuration);
     }
+
+    if (video.currentTime >= end || video.ended) {
+      // Prevent rapid looping if the segment is extremely short
+      if (Math.abs(video.currentTime - start) > 0.5) {
+        video.currentTime = start;
+        video.play().catch(() => setIsPlaying(false));
+      } else {
+        video.pause();
+        setIsPlaying(false);
+      }
+    }
+  };
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!videoRef.current || isExporting) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    
+    const video = videoRef.current;
+    const vidDuration = video.duration || 0;
+    if (vidDuration === 0) return;
+
+    let start = activeHighlight.startTime;
+    let end = activeHighlight.endTime;
+
+    if (start >= vidDuration - 0.5) {
+      start = 0;
+      end = vidDuration;
+    } else {
+      end = Math.min(end, vidDuration);
+    }
+    
+    const duration = end - start;
+    const newTime = start + (duration * percentage);
+    
+    video.currentTime = newTime;
   };
 
   // Drag Logic
@@ -155,13 +227,39 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       const chunks: BlobPart[] = [];
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
-      video.currentTime = activeHighlight.startTime;
-      video.muted = false;
+      let start = activeHighlight.startTime;
+      let end = activeHighlight.endTime;
+      const vidDuration = video.duration;
+      
+      if (!isNaN(vidDuration) && start >= vidDuration - 0.5) {
+        start = 0;
+        end = vidDuration;
+      } else if (!isNaN(vidDuration)) {
+        end = Math.min(end, vidDuration);
+      }
 
-      recorder.start();
+      video.muted = false;
+      
+      // Wait for video to seek to the start time before recording to prevent premature cutoff
+      await new Promise<void>((resolve) => {
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        video.addEventListener('seeked', onSeeked);
+        video.currentTime = start;
+        
+        // Fallback in case seeked doesn't fire
+        setTimeout(() => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        }, 500);
+      });
+
+      recorder.start(100); // Use timeslice to periodically flush chunks
       await video.play();
 
-      const duration = activeHighlight.endTime - activeHighlight.startTime;
+      const duration = end - start;
 
       const drawFrame = () => {
         if (!ctx || !isExportingRef.current) return;
@@ -241,10 +339,11 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
 
-        const progress = Math.min(100, ((video.currentTime - activeHighlight.startTime) / duration) * 100);
+        const progress = Math.min(100, ((video.currentTime - start) / duration) * 100);
         setExportProgress(progress);
 
-        if (video.currentTime < activeHighlight.endTime) {
+        // Stop if we reached the end time or the video actually ended
+        if (video.currentTime < end && !video.ended) {
           requestAnimationFrame(drawFrame);
         } else {
           if (recorder.state === 'recording') {
@@ -444,11 +543,28 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
             )}
 
             {/* Progress Bar */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 z-40">
+            <div 
+              className="absolute bottom-0 left-0 right-0 h-2 bg-white/20 z-40 cursor-pointer hover:h-3 transition-all"
+              onClick={handleProgressClick}
+            >
               <div 
                 className="h-full bg-primary transition-all duration-75"
                 style={{ 
-                  width: `${Math.max(0, Math.min(100, ((currentTime - activeHighlight.startTime) / (activeHighlight.endTime - activeHighlight.startTime)) * 100))}%` 
+                  width: `${(() => {
+                    const vidDuration = videoRef.current?.duration || 0;
+                    let start = activeHighlight.startTime;
+                    let end = activeHighlight.endTime;
+                    if (vidDuration > 0) {
+                      if (start >= vidDuration - 0.5) {
+                        start = 0;
+                        end = vidDuration;
+                      } else {
+                        end = Math.min(end, vidDuration);
+                      }
+                    }
+                    const duration = Math.max(0.1, end - start);
+                    return Math.max(0, Math.min(100, ((currentTime - start) / duration) * 100));
+                  })()}%` 
                 }}
               />
             </div>

@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 // Initialize the Gemini client
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export async function extractHighlights(file: File, targetDuration: number): Promise<any[]> {
+export async function extractHighlights(file: File, targetDuration: number, clipCount: number = 3): Promise<any[]> {
   // Prevent browser memory crash and API payload limits (inlineData is limited to ~20MB)
   if (file.size > 15 * 1024 * 1024) {
     throw new Error("FILE_TOO_LARGE");
@@ -32,7 +32,7 @@ export async function extractHighlights(file: File, targetDuration: number): Pro
           mimeType: file.type,
         }
       },
-      "Analyze this video and identify the 3 most engaging, viral-worthy highlight segments suitable for short-form content (like YouTube Shorts or TikTok). " +
+      "Analyze this video and identify the " + clipCount + " most engaging, viral-worthy highlight segments suitable for short-form content (like YouTube Shorts or TikTok). " +
       `CRITICAL: The target duration for each segment MUST be exactly around ${targetDuration} seconds (e.g., if ${targetDuration} is requested, the segment must be ~${targetDuration} seconds long). ` +
       "Ensure the video does not cut off abruptly. The start and end timestamps MUST align with natural pauses in speech or logical breaks in the context so the flow is smooth. " +
       "For each segment, provide a catchy title, a brief explanation of why it's engaging, the start and end timestamps in seconds, and two lines of catchy Korean copywriting for the top of the video (topCopy1 and topCopy2). " +

@@ -3,9 +3,10 @@ import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
 import { UploadCloud, FileVideo, AlertCircle } from 'lucide-react';
 
-export default function Uploader({ onUpload }: { onUpload: (file: File, duration: number) => void }) {
+export default function Uploader({ onUpload }: { onUpload: (file: File, duration: number, clipCount: number) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(30);
+  const [clipCount, setClipCount] = useState<number>(3);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -19,9 +20,9 @@ export default function Uploader({ onUpload }: { onUpload: (file: File, duration
         return;
       }
       setError(null);
-      onUpload(file, duration);
+      onUpload(file, duration, clipCount);
     }
-  }, [onUpload, duration]);
+  }, [onUpload, duration, clipCount]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -43,22 +44,43 @@ export default function Uploader({ onUpload }: { onUpload: (file: File, duration
           </p>
         </div>
 
-        <div className="mb-8 text-center">
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">원하는 쇼츠 길이를 선택하세요</h3>
-          <div className="flex justify-center gap-3">
-            {[15, 30, 60].map(time => (
-              <button
-                key={time}
-                onClick={() => setDuration(time)}
-                className={`px-6 py-2 rounded-full font-medium transition-all duration-200 ${
-                  duration === time 
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-105' 
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                약 {time}초
-              </button>
-            ))}
+        <div className="mb-8 text-center flex flex-col sm:flex-row justify-center items-center gap-8">
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-3">원하는 쇼츠 길이를 선택하세요</h3>
+            <div className="flex justify-center gap-3">
+              {[15, 30, 60].map(time => (
+                <button
+                  key={time}
+                  onClick={() => setDuration(time)}
+                  className={`px-6 py-2 rounded-full font-medium transition-all duration-200 ${
+                    duration === time 
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-105' 
+                      : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  약 {time}초
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-3">추출할 클립 개수</h3>
+            <div className="flex justify-center gap-3">
+              {[3, 5, 10].map(count => (
+                <button
+                  key={count}
+                  onClick={() => setClipCount(count)}
+                  className={`px-6 py-2 rounded-full font-medium transition-all duration-200 ${
+                    clipCount === count 
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-105' 
+                      : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  {count}개
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
