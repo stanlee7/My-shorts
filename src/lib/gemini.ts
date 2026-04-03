@@ -33,10 +33,10 @@ export async function extractHighlights(file: File, targetDuration: number, clip
         }
       },
       "Analyze this video and identify the " + clipCount + " most engaging, viral-worthy highlight segments suitable for short-form content (like YouTube Shorts or TikTok). " +
-      `CRITICAL: The target duration for each segment MUST be exactly around ${targetDuration} seconds (e.g., if ${targetDuration} is requested, the segment must be ~${targetDuration} seconds long). ` +
-      "Ensure the video does not cut off abruptly. The start and end timestamps MUST align with natural pauses in speech or logical breaks in the context so the flow is smooth. " +
+      `CRITICAL: The target duration is around ${targetDuration} seconds, BUT natural cuts are much more important than exact duration. ` +
+      "DO NOT cut mid-sentence or mid-action. You MUST find natural pauses in speech (silence) or clear scene changes for the start and end timestamps. It is better to be a few seconds shorter or longer than to cut someone off while speaking. " +
       "For each segment, provide a catchy title, a brief explanation of why it's engaging, the start and end timestamps in seconds, and two lines of catchy Korean copywriting for the top of the video (topCopy1 and topCopy2). " +
-      "topCopy1 should be a short hook (e.g., '이거 모르면 손해', '클릭을 부르는 디자인'), and topCopy2 should be a strong, curiosity-inducing main hook (e.g., '마우스 반응의 정체는?', '역대급 레전드 순간 ㄷㄷ')."
+      "CRITICAL FOR COPYWRITING: Each segment MUST have a completely different tone and style of copywriting. Do not repeat the same phrases. Use a mix of styles: [Curiosity (e.g., '이게 진짜 된다고?'), Shock (e.g., '역대급 장면 ㄷㄷ'), Informative (e.g., '1분 만에 배우는 꿀팁'), Empathy/Humor (e.g., '아 내 얘기네 ㅋㅋ')]. Make them highly clickable and contextually relevant to the specific segment."
     ],
     config: {
       responseMimeType: "application/json",

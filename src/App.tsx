@@ -50,16 +50,25 @@ export default function App() {
       
       // Fallback to mock data if file is too large or API fails
       setTimeout(() => {
+        const copyVariations = [
+          { top1: '이거 모르면 손해', top2: '역대급 꿀팁 공개 ㄷㄷ' },
+          { top1: '마지막 반전 주의', top2: '이게 진짜 된다고?' },
+          { top1: '아 내 얘기네 ㅋㅋ', top2: '무조건 공감하는 영상' },
+          { top1: '1분 만에 배우는', top2: '클릭을 부르는 마법' },
+          { top1: '전문가도 놀란', top2: '숨겨진 비밀 대공개' }
+        ];
+
         const mockHighlights = Array.from({ length: clipCount }).map((_, i) => {
           const start = i * (duration + 5);
+          const copy = copyVariations[i % copyVariations.length];
           return {
             id: String(i + 1),
             title: `추천 하이라이트 ${i + 1}`,
             explanation: `시청자의 이목을 끄는 강력한 구간입니다. (${i + 1})`,
             startTime: start,
             endTime: start + duration,
-            topCopy1: '이 장면 놓치면 후회함',
-            topCopy2: '역대급 레전드 순간 ㄷㄷ'
+            topCopy1: copy.top1,
+            topCopy2: copy.top2
           };
         });
         setHighlights(mockHighlights);
