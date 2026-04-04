@@ -11,6 +11,11 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
   const [exportProgress, setExportProgress] = useState(0);
   const isExportingRef = useRef(false);
 
+  // Web Audio API refs for reliable audio capture
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+
   // Editor State
   const [texts, setTexts] = useState({
     top1: "디자인 퀄리티 폭발",
@@ -207,39 +212,6 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       canvas.height = 1280;
       const ctx = canvas.getContext('2d');
 
-      const canvasStream = (canvas as any).captureStream(30);
-      let audioStream: MediaStream | null = null;
-      try {
-        const anyVideo = video as any;
-        const vidStream = anyVideo.captureStream ? anyVideo.captureStream() : anyVideo.mozCaptureStream ? anyVideo.mozCaptureStream() : null;
-        if (vidStream && vidStream.getAudioTracks().length > 0) {
-          audioStream = new MediaStream([vidStream.getAudioTracks()[0]]);
-        }
-      } catch (e) {
-        console.warn("Audio capture failed", e);
-      }
-
-      const tracks = [...canvasStream.getVideoTracks()];
-      if (audioStream) tracks.push(...audioStream.getAudioTracks());
-      const combinedStream = new MediaStream(tracks);
-
-      // Determine supported mime type
-      let mimeType = 'video/webm';
-      let extension = 'webm';
-      
-      if (MediaRecorder.isTypeSupported('video/mp4')) {
-        mimeType = 'video/mp4';
-        extension = 'mp4';
-      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-        mimeType = 'video/webm;codecs=vp9';
-      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-        mimeType = 'video/webm;codecs=vp8';
-      }
-
-      const recorder = new MediaRecorder(combinedStream, { mimeType });
-      const chunks: BlobPart[] = [];
-      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-
       let start = activeHighlight.startTime;
       let end = activeHighlight.endTime;
       const vidDuration = video.duration;
@@ -251,9 +223,10 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
         end = Math.min(end, vidDuration);
       }
 
+      // 1. Unmute and seek FIRST
       video.muted = false;
+      video.volume = 1.0;
       
-      // Wait for video to seek to the start time before recording to prevent premature cutoff
       await new Promise<void>((resolve) => {
         const onSeeked = () => {
           video.removeEventListener('seeked', onSeeked);
@@ -262,16 +235,69 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
         video.addEventListener('seeked', onSeeked);
         video.currentTime = start;
         
-        // Fallback in case seeked doesn't fire
         setTimeout(() => {
           video.removeEventListener('seeked', onSeeked);
           resolve();
         }, 500);
       });
 
-      recorder.start(100); // Use timeslice to periodically flush chunks
+      // 2. Play the video so the stream is active
       await video.play();
 
+      // 3. NOW capture the streams (audio will be present because it's unmuted and playing)
+      const canvasStream = (canvas as any).captureStream(30);
+      let audioStream: MediaStream | null = null;
+      
+      try {
+        if (!audioCtxRef.current) {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          audioCtxRef.current = new AudioContextClass();
+          audioSourceRef.current = audioCtxRef.current.createMediaElementSource(video);
+          audioDestRef.current = audioCtxRef.current.createMediaStreamDestination();
+          audioSourceRef.current.connect(audioDestRef.current);
+          audioSourceRef.current.connect(audioCtxRef.current.destination);
+        }
+        if (audioCtxRef.current.state === 'suspended') {
+          await audioCtxRef.current.resume();
+        }
+        audioStream = audioDestRef.current.stream;
+      } catch (e) {
+        console.warn("Web Audio API capture failed, falling back to captureStream", e);
+        try {
+          const anyVideo = video as any;
+          const vidStream = anyVideo.captureStream ? anyVideo.captureStream() : anyVideo.mozCaptureStream ? anyVideo.mozCaptureStream() : null;
+          if (vidStream && vidStream.getAudioTracks().length > 0) {
+            audioStream = new MediaStream([vidStream.getAudioTracks()[0]]);
+          }
+        } catch (fallbackErr) {
+          console.warn("Fallback audio capture failed", fallbackErr);
+        }
+      }
+
+      const tracks = [...canvasStream.getVideoTracks()];
+      if (audioStream) tracks.push(...audioStream.getAudioTracks());
+      const combinedStream = new MediaStream(tracks);
+
+      // Determine supported mime type
+      let mimeType = 'video/webm';
+      let extension = 'webm';
+      
+      // We explicitly avoid video/mp4 because Chrome's MediaRecorder encodes MP4 
+      // with Opus audio, which causes playback errors in native Windows players.
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+        mimeType = 'video/webm;codecs=vp9,opus';
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+        mimeType = 'video/webm;codecs=vp8,opus';
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        mimeType = 'video/webm';
+      }
+
+      const recorder = new MediaRecorder(combinedStream, { mimeType });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+      // 4. Start recording and drawing
+      recorder.start(100); 
       const duration = end - start;
 
       const drawFrame = () => {
