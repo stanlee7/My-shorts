@@ -11,8 +11,8 @@ export default function Uploader({ onUpload }: { onUpload: (file: File, duration
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (file) {
-      if (file.size > 300 * 1024 * 1024) { // 300MB limit for prototype
-        setError('프로토타입 버전에서는 300MB 이하의 파일만 업로드 가능합니다.');
+      if (file.size > 900 * 1024 * 1024) { // 900MB limit for prototype
+        setError('프로토타입 버전에서는 900MB 이하의 파일만 업로드 가능합니다.');
         return;
       }
       if (!file.type.startsWith('video/')) {
@@ -107,7 +107,7 @@ export default function Uploader({ onUpload }: { onUpload: (file: File, duration
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1"><FileVideo className="w-4 h-4" /> MP4, MOV, WEBM</span>
             <span>•</span>
-            <span>최대 300MB</span>
+            <span>최대 900MB</span>
           </div>
         </div>
 

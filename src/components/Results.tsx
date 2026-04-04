@@ -223,7 +223,20 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       if (audioStream) tracks.push(...audioStream.getAudioTracks());
       const combinedStream = new MediaStream(tracks);
 
-      const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+      // Determine supported mime type
+      let mimeType = 'video/webm';
+      let extension = 'webm';
+      
+      if (MediaRecorder.isTypeSupported('video/mp4')) {
+        mimeType = 'video/mp4';
+        extension = 'mp4';
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        mimeType = 'video/webm;codecs=vp9';
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+        mimeType = 'video/webm;codecs=vp8';
+      }
+
+      const recorder = new MediaRecorder(combinedStream, { mimeType });
       const chunks: BlobPart[] = [];
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
 
@@ -358,11 +371,11 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       await new Promise<void>((resolve, reject) => {
         recorder.onstop = () => {
           try {
-            const blob = new Blob(chunks, { type: 'video/webm' });
+            const blob = new Blob(chunks, { type: mimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${activeHighlight.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.webm`;
+            a.download = `${activeHighlight.title.replace(/[^a-z0-9가-힣]/gi, '_').toLowerCase()}.${extension}`;
             a.click();
             URL.revokeObjectURL(url);
             resolve();
