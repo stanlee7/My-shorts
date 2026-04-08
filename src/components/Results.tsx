@@ -206,6 +206,8 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
     const originalTime = video.currentTime;
     const originalMuted = video.muted;
 
+    let handleVisibilityChange: () => void;
+
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 720;
@@ -299,6 +301,18 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       // 4. Start recording and drawing
       recorder.start(100); 
       const duration = end - start;
+
+      handleVisibilityChange = () => {
+        if (!isExportingRef.current) return;
+        if (document.hidden) {
+          video.pause();
+          if (recorder.state === 'recording') recorder.pause();
+        } else {
+          video.play().catch(e => console.error("Resume play failed", e));
+          if (recorder.state === 'paused') recorder.resume();
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       const drawFrame = () => {
         if (!ctx || !isExportingRef.current) return;
@@ -416,6 +430,9 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       console.error(err);
       alert("내보내기에 실패했습니다. 브라우저가 이 기능을 지원하지 않을 수 있습니다.");
     } finally {
+      if (handleVisibilityChange) {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       setIsExporting(false);
       isExportingRef.current = false;
       video.currentTime = originalTime;
@@ -716,6 +733,11 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
                 </>
               )}
             </button>
+            {isExporting && (
+              <p className="text-xs text-red-400 mt-3 text-center font-medium leading-relaxed">
+                ⚠️ 내보내기 중에는 다른 탭으로 이동하지 마세요.<br/>이동 시 녹화가 일시정지됩니다.
+              </p>
+            )}
           </div>
         </div>
       </div>
