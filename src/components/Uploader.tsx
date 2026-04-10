@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion } from 'framer-motion';
-import { UploadCloud, FileVideo, AlertCircle } from 'lucide-react';
+import { UploadCloud, FileVideo, AlertCircle, Youtube, Link as LinkIcon } from 'lucide-react';
 
-export default function Uploader({ onUpload }: { onUpload: (file: File, duration: number, clipCount: number) => void }) {
+export default function Uploader({ onUpload, onYoutubeUpload }: { onUpload: (file: File, duration: number, clipCount: number) => void, onYoutubeUpload?: (url: string, duration: number, clipCount: number) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(30);
   const [clipCount, setClipCount] = useState<number>(3);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -29,6 +30,22 @@ export default function Uploader({ onUpload }: { onUpload: (file: File, duration
     accept: { 'video/*': [] },
     maxFiles: 1
   } as any);
+
+  const handleYoutubeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!youtubeUrl.trim()) {
+      setError('유튜브 링크를 입력해주세요.');
+      return;
+    }
+    if (!youtubeUrl.includes('youtube.com') && !youtubeUrl.includes('youtu.be')) {
+      setError('올바른 유튜브 링크를 입력해주세요.');
+      return;
+    }
+    setError(null);
+    if (onYoutubeUpload) {
+      onYoutubeUpload(youtubeUrl, duration, clipCount);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-6 relative">
@@ -84,30 +101,65 @@ export default function Uploader({ onUpload }: { onUpload: (file: File, duration
           </div>
         </div>
 
-        <div 
-          {...getRootProps()} 
-          className={`
-            border-2 border-dashed rounded-3xl p-16 text-center cursor-pointer transition-all duration-300
-            ${isDragActive ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40'}
-          `}
-        >
-          <input {...getInputProps()} />
-          
-          <div className="w-20 h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-6">
-            <UploadCloud className="w-10 h-10 text-primary" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div 
+            {...getRootProps()} 
+            className={`
+              border-2 border-dashed rounded-3xl p-10 text-center cursor-pointer transition-all duration-300 h-full flex flex-col justify-center
+              ${isDragActive ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40'}
+            `}
+          >
+            <input {...getInputProps()} />
+            
+            <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <UploadCloud className="w-8 h-8 text-primary" />
+            </div>
+            
+            <h3 className="text-xl font-semibold mb-2">
+              {isDragActive ? '여기에 놓아주세요' : '동영상 파일 업로드'}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              클릭하거나 드래그 앤 드롭
+            </p>
+            
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><FileVideo className="w-3 h-3" /> MP4, MOV, WEBM</span>
+              <span>•</span>
+              <span>최대 900MB</span>
+            </div>
           </div>
-          
-          <h3 className="text-2xl font-semibold mb-2">
-            {isDragActive ? '여기에 동영상을 놓아주세요' : '동영상 드래그 앤 드롭'}
-          </h3>
-          <p className="text-muted-foreground mb-8">
-            또는 클릭하여 내 컴퓨터에서 파일 찾기
-          </p>
-          
-          <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1"><FileVideo className="w-4 h-4" /> MP4, MOV, WEBM</span>
-            <span>•</span>
-            <span>최대 900MB</span>
+
+          <div className="border-2 border-border rounded-3xl p-10 bg-muted/10 flex flex-col justify-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+              <Youtube className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2 text-center">
+              유튜브 링크로 시작하기
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6 text-center">
+              유튜브 영상 URL을 붙여넣기 하세요
+            </p>
+            
+            <form onSubmit={handleYoutubeSubmit} className="flex flex-col gap-3">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <LinkIcon className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  value={youtubeUrl}
+                  onChange={(e) => setYoutubeUrl(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                />
+              </div>
+              <button 
+                type="submit"
+                className="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-colors shadow-lg shadow-red-500/25"
+              >
+                링크로 영상 불러오기
+              </button>
+            </form>
           </div>
         </div>
 

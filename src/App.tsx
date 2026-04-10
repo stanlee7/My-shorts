@@ -77,10 +77,52 @@ export default function App() {
     }
   };
 
+  const handleYoutubeUpload = async (url: string, duration: number, clipCount: number = 3) => {
+    setStep('processing');
+    setIsSimulated(true);
+    
+    try {
+      // Use our new backend proxy to stream the video
+      const streamUrl = `/api/youtube/stream?url=${encodeURIComponent(url)}`;
+      setVideoUrl(streamUrl);
+      
+      // Simulate processing time
+      setTimeout(() => {
+        const copyVariations = [
+          { top1: '유튜브에서 찾은', top2: '역대급 하이라이트' },
+          { top1: '조회수 폭발각', top2: '이 영상 무조건 뜹니다' },
+          { top1: '유튜브 알고리즘', top2: '선택받은 레전드 영상' },
+          { top1: '1분 만에 보는', top2: '유튜브 핵심 요약' },
+          { top1: '구독자 떡상', top2: '비밀은 바로 이것' }
+        ];
+
+        const mockHighlights = Array.from({ length: clipCount }).map((_, i) => {
+          const start = i * (duration + 5);
+          const copy = copyVariations[i % copyVariations.length];
+          return {
+            id: String(i + 1),
+            title: `유튜브 하이라이트 ${i + 1}`,
+            explanation: `유튜브 영상에서 추출된 핵심 구간입니다. (${i + 1})`,
+            startTime: start,
+            endTime: start + duration,
+            topCopy1: copy.top1,
+            topCopy2: copy.top2
+          };
+        });
+        setHighlights(mockHighlights);
+        setStep('results');
+      }, 4000);
+    } catch (error) {
+      console.error("YouTube processing failed:", error);
+      alert("유튜브 영상을 불러오는데 실패했습니다. 올바른 링크인지 확인해주세요.");
+      setStep('upload');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {step === 'landing' && <Landing onStart={handleStart} />}
-      {step === 'upload' && <Uploader onUpload={handleUpload} />}
+      {step === 'upload' && <Uploader onUpload={handleUpload} onYoutubeUpload={handleYoutubeUpload} />}
       {step === 'processing' && <Processing />}
       {step === 'results' && videoUrl && (
         <Results 

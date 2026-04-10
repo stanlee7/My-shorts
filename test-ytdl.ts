@@ -1,0 +1,10 @@
+import ytdl from '@distube/ytdl-core';
+async function test() {
+  try {
+    const info = await ytdl.getInfo('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    console.log('Success:', info.videoDetails.title);
+  } catch (e) {
+    console.error('Error:', e.message);
+  }
+}
+test();

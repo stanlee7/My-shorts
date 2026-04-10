@@ -540,6 +540,11 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
                 src={videoUrl}
                 className="w-full h-full object-cover pointer-events-none"
                 onTimeUpdate={handleTimeUpdate}
+                onError={(e) => {
+                  console.error("Video load error:", e);
+                  alert("영상을 불러오는데 실패했습니다. 유튜브 링크가 올바른지, 또는 영상이 재생 가능한 상태인지 확인해주세요.");
+                  onReset();
+                }}
                 playsInline
                 muted={false}
                 loop={false}
