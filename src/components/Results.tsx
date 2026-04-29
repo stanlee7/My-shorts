@@ -28,7 +28,7 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(activeHighlight.startTime);
-  const [selectedFont, setSelectedFont] = useState('Black Han Sans');
+  const [selectedFont, setSelectedFont] = useState('S-CoreDream-8Heavy');
   const [topFontSize1, setTopFontSize1] = useState(50);
   const [topFontSize2, setTopFontSize2] = useState(64);
   const [topMargin, setTopMargin] = useState(80);
@@ -62,7 +62,12 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
         }
         
         video.currentTime = start;
-        video.play().catch(() => setIsPlaying(false));
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((e) => {
+            if (e.name !== 'AbortError') setIsPlaying(false);
+          });
+        }
         setIsPlaying(true);
       };
 
@@ -103,7 +108,12 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       // Prevent rapid looping if the segment is extremely short
       if (Math.abs(video.currentTime - start) > 0.5) {
         video.currentTime = start;
-        video.play().catch(() => setIsPlaying(false));
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((e) => {
+            if (e.name !== 'AbortError') setIsPlaying(false);
+          });
+        }
       } else {
         video.pause();
         setIsPlaying(false);
@@ -159,9 +169,19 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       document.removeEventListener('pointerup', handlePointerUp);
       if (!dragged) {
         if (videoRef.current) {
-          if (isPlaying) videoRef.current.pause();
-          else videoRef.current.play();
-          setIsPlaying(!isPlaying);
+          if (isPlaying) {
+            videoRef.current.pause();
+            setIsPlaying(false);
+          } else {
+            const playPromise = videoRef.current.play();
+            if (playPromise !== undefined) {
+              playPromise.then(() => setIsPlaying(true)).catch((e) => {
+                if (e.name !== 'AbortError') setIsPlaying(false);
+              });
+            } else {
+              setIsPlaying(true);
+            }
+          }
         }
       }
     };
@@ -244,7 +264,11 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       });
 
       // 2. Play the video so the stream is active
-      await video.play();
+      try {
+        await video.play();
+      } catch (e: any) {
+        if (e.name !== 'AbortError') throw e;
+      }
 
       // 3. NOW capture the streams (audio will be present because it's unmuted and playing)
       const canvasStream = (canvas as any).captureStream(30);
@@ -308,7 +332,12 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
           video.pause();
           if (recorder.state === 'recording') recorder.pause();
         } else {
-          video.play().catch(e => console.error("Resume play failed", e));
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(e => {
+              if (e.name !== 'AbortError') console.error("Resume play failed", e.message);
+            });
+          }
           if (recorder.state === 'paused') recorder.resume();
         }
       };
@@ -427,7 +456,7 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
       });
 
     } catch (err) {
-      console.error(err);
+      console.error("Export error:", err instanceof Error ? err.message : String(err));
       alert("내보내기에 실패했습니다. 브라우저가 이 기능을 지원하지 않을 수 있습니다.");
     } finally {
       if (handleVisibilityChange) {
@@ -541,7 +570,7 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
                 className="w-full h-full object-cover pointer-events-none"
                 onTimeUpdate={handleTimeUpdate}
                 onError={(e) => {
-                  console.error("Video load error:", e);
+                  console.error("Video load error");
                   alert("영상을 불러오는데 실패했습니다. 유튜브 링크가 올바른지, 또는 영상이 재생 가능한 상태인지 확인해주세요.");
                   onReset();
                 }}
@@ -645,8 +674,11 @@ export default function Results({ videoUrl, highlights, onReset, isSimulated }: 
                 onChange={(e) => setSelectedFont(e.target.value)}
                 className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
               >
-                <option value="Noto Sans KR">본고딕 (기본)</option>
+                <option value="S-CoreDream-8Heavy">에스코어드림 (강조)</option>
+                <option value="Pretendard">프리텐다드 (깔끔)</option>
+                <option value="GmarketSansBold">지마켓산스 (강조)</option>
                 <option value="Black Han Sans">검은고딕 (강조)</option>
+                <option value="Noto Sans KR">본고딕 (기본)</option>
                 <option value="Jua">배민 주아체</option>
                 <option value="Do Hyeon">배민 도현체</option>
                 <option value="Yeon Sung">배민 연성체</option>

@@ -3,7 +3,7 @@ import Landing from './components/Landing';
 import Uploader from './components/Uploader';
 import Processing from './components/Processing';
 import Results from './components/Results';
-import { extractHighlights } from './lib/gemini';
+import { extractHighlights, generateCreativeHooks } from './lib/gemini';
 
 export type Highlight = {
   id: string;
@@ -51,10 +51,10 @@ export default function App() {
       // Fallback to mock data if file is too large or API fails
       setTimeout(() => {
         const copyVariations = [
+          { top1: '복사 붙여넣기 하나로', top2: '3D 웹사이트 10초컷' },
+          { top1: '클릭을 부르는 디자인', top2: '마우스 반응의 정체는?' },
+          { top1: '구글 AI가 다해주는', top2: '미친 3D 홈페이지 제작' },
           { top1: '이거 모르면 손해', top2: '역대급 꿀팁 공개 ㄷㄷ' },
-          { top1: '마지막 반전 주의', top2: '이게 진짜 된다고?' },
-          { top1: '아 내 얘기네 ㅋㅋ', top2: '무조건 공감하는 영상' },
-          { top1: '1분 만에 배우는', top2: '클릭을 부르는 마법' },
           { top1: '전문가도 놀란', top2: '숨겨진 비밀 대공개' }
         ];
 
@@ -79,20 +79,39 @@ export default function App() {
 
   const handleYoutubeUpload = async (url: string, duration: number, clipCount: number = 3) => {
     setStep('processing');
-    setIsSimulated(true);
+    setIsSimulated(true); // Still simulated because we don't analyze the actual video frames
     
     try {
-      // Use our new backend proxy to stream the video
+      // 1. Get video info (title, duration)
+      const infoRes = await fetch(`/api/youtube/info?url=${encodeURIComponent(url)}`);
+      if (!infoRes.ok) throw new Error("Failed to fetch video info");
+      const info = await infoRes.json();
+
+      // 2. Set the stream URL
       const streamUrl = `/api/youtube/stream?url=${encodeURIComponent(url)}`;
       setVideoUrl(streamUrl);
       
-      // Simulate processing time
-      setTimeout(() => {
+      // 3. Generate creative hooks based on the title
+      try {
+        const rawHighlights = await generateCreativeHooks(info.title, info.duration || duration * 10, clipCount);
+        const formatted = rawHighlights.map((h: any, i: number) => ({
+          id: String(i + 1),
+          title: h.title,
+          explanation: h.explanation,
+          startTime: h.startTime,
+          endTime: h.endTime,
+          topCopy1: h.topCopy1 || "AI 추천 하이라이트",
+          topCopy2: h.topCopy2 || h.title,
+        }));
+        setHighlights(formatted);
+      } catch (geminiError) {
+        console.error("Gemini hook generation failed, falling back to mock data", geminiError);
+        // Fallback if Gemini fails
         const copyVariations = [
-          { top1: '유튜브에서 찾은', top2: '역대급 하이라이트' },
+          { top1: '복사 붙여넣기 하나로', top2: '3D 웹사이트 10초컷' },
+          { top1: '클릭을 부르는 디자인', top2: '마우스 반응의 정체는?' },
+          { top1: '구글 AI가 다해주는', top2: '미친 3D 홈페이지 제작' },
           { top1: '조회수 폭발각', top2: '이 영상 무조건 뜹니다' },
-          { top1: '유튜브 알고리즘', top2: '선택받은 레전드 영상' },
-          { top1: '1분 만에 보는', top2: '유튜브 핵심 요약' },
           { top1: '구독자 떡상', top2: '비밀은 바로 이것' }
         ];
 
@@ -110,8 +129,9 @@ export default function App() {
           };
         });
         setHighlights(mockHighlights);
-        setStep('results');
-      }, 4000);
+      }
+      
+      setStep('results');
     } catch (error) {
       console.error("YouTube processing failed:", error);
       alert("유튜브 영상을 불러오는데 실패했습니다. 올바른 링크인지 확인해주세요.");

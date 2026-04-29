@@ -5,12 +5,12 @@ import youtubedl from "youtube-dl-exec";
 import path from "path";
 
 // Cache for YouTube direct URLs to avoid running yt-dlp on every range request
-const urlCache = new Map<string, { directUrl: string, expires: number }>();
+const urlCache = new Map<string, { directUrl: string, title: string, duration: number, expires: number }>();
 
-async function getDirectUrl(youtubeUrl: string): Promise<string> {
+async function getYoutubeInfo(youtubeUrl: string) {
   const cached = urlCache.get(youtubeUrl);
   if (cached && cached.expires > Date.now()) {
-    return cached.directUrl;
+    return cached;
   }
 
   const output = await youtubedl(youtubeUrl, {
@@ -29,9 +29,16 @@ async function getDirectUrl(youtubeUrl: string): Promise<string> {
     throw new Error("No suitable format found");
   }
 
+  const info = {
+    directUrl: format.url,
+    title: output.title || "YouTube Video",
+    duration: output.duration || 0,
+    expires: Date.now() + 2 * 60 * 60 * 1000
+  };
+
   // Cache for 2 hours
-  urlCache.set(youtubeUrl, { directUrl: format.url, expires: Date.now() + 2 * 60 * 60 * 1000 });
-  return format.url;
+  urlCache.set(youtubeUrl, info);
+  return info;
 }
 
 async function startServer() {
@@ -40,6 +47,23 @@ async function startServer() {
 
   app.use(cors());
   app.use(express.json());
+
+  // API Route to get YouTube video info
+  app.get("/api/youtube/info", async (req, res) => {
+    const url = req.query.url as string;
+    
+    if (!url || (!url.includes('youtube.com') && !url.includes('youtu.be'))) {
+      return res.status(400).json({ error: "Invalid YouTube URL" });
+    }
+
+    try {
+      const info = await getYoutubeInfo(url);
+      res.json({ title: info.title, duration: info.duration });
+    } catch (error: any) {
+      console.error("YouTube info error:", error.message);
+      res.status(500).json({ error: "Failed to get YouTube video info" });
+    }
+  });
 
   // API Route to stream YouTube video
   app.get("/api/youtube/stream", async (req, res) => {
@@ -50,7 +74,8 @@ async function startServer() {
     }
 
     try {
-      const directUrl = await getDirectUrl(url);
+      const info = await getYoutubeInfo(url);
+      const directUrl = info.directUrl;
 
       // Proxy the request to the direct URL
       const headers: any = {};
@@ -58,7 +83,16 @@ async function startServer() {
         headers.range = req.headers.range;
       }
 
-      const response = await fetch(directUrl, { headers });
+      // Create an AbortController to cancel the fetch if the client disconnects
+      const controller = new AbortController();
+      req.on('close', () => {
+        controller.abort();
+      });
+
+      const response = await fetch(directUrl, { 
+        headers,
+        signal: controller.signal
+      });
       
       res.status(response.status);
       response.headers.forEach((value, key) => {
@@ -66,22 +100,8 @@ async function startServer() {
       });
 
       if (response.body) {
-        // Convert Web Stream to Node Stream
-        const reader = response.body.getReader();
-        const pump = async () => {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              res.end();
-              break;
-            }
-            res.write(value);
-          }
-        };
-        pump().catch(err => {
-          console.error("Stream pump error:", err);
-          res.end();
-        });
+        const { Readable } = require('stream');
+        Readable.fromWeb(response.body).pipe(res);
       } else {
         res.end();
       }
